@@ -141,7 +141,9 @@ impl Game {
         self.snake.direction = new_direction;
     }
 
-    pub fn current_direction(&self) -> Direction { self.snake.direction }
+    pub fn current_direction(&self) -> Direction {
+        self.snake.direction
+    }
 
     /// Updates game. Must be called manually after every change
     /// if it returns false then game over

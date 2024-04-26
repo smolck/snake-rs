@@ -12,8 +12,8 @@ mod shader;
 use winit::{
     event::*,
     event_loop::{ControlFlow, EventLoop},
-    window::Window,
     keyboard::{KeyCode, PhysicalKey},
+    window::Window,
 };
 
 // use wgpu::util::DeviceExt;
@@ -303,60 +303,64 @@ async fn run() {
 
     // event_loop.run_app(
 
-    event_loop.run(move |event, elwt| match event {
-
-        Event::WindowEvent {
-            window_id,
-            ref event,
-        } if window_id == state.window.id() => match event {
-            WindowEvent::CloseRequested => elwt.exit(),
-            WindowEvent::Resized(new_size) => state.resize(*new_size),
-            /*WindowEvent::ScaleFactorChanged { new_inner_size, .. } => {
-                state.resize(**new_inner_size)
-            }*/
-            WindowEvent::KeyboardInput { event: KeyEvent { physical_key, .. }, .. } => {
-                if let PhysicalKey::Code(key_code) = physical_key {
-                    state.game_state.change_direction(match key_code {
-                        KeyCode::ArrowUp => game::Direction::Up,
-                        KeyCode::ArrowDown => game::Direction::Down,
-                        KeyCode::ArrowLeft => game::Direction::Left,
-                        KeyCode::ArrowRight => game::Direction::Right,
-                        // TODO(smolck)
-                        _ => state.game_state.current_direction(),
-                    });
+    event_loop
+        .run(move |event, elwt| match event {
+            Event::WindowEvent {
+                window_id,
+                ref event,
+            } if window_id == state.window.id() => match event {
+                WindowEvent::CloseRequested => elwt.exit(),
+                WindowEvent::Resized(new_size) => state.resize(*new_size),
+                /*WindowEvent::ScaleFactorChanged { new_inner_size, .. } => {
+                    state.resize(**new_inner_size)
+                }*/
+                WindowEvent::KeyboardInput {
+                    event: KeyEvent { physical_key, .. },
+                    ..
+                } => {
+                    if let PhysicalKey::Code(key_code) = physical_key {
+                        state.game_state.change_direction(match key_code {
+                            KeyCode::ArrowUp => game::Direction::Up,
+                            KeyCode::ArrowDown => game::Direction::Down,
+                            KeyCode::ArrowLeft => game::Direction::Left,
+                            KeyCode::ArrowRight => game::Direction::Right,
+                            // TODO(smolck)
+                            _ => state.game_state.current_direction(),
+                        });
+                    }
                 }
-            }
-            WindowEvent::RedrawRequested => {
-                // state.game_state.change_direction(game::Direction::Left);
+                WindowEvent::RedrawRequested => {
+                    // state.game_state.change_direction(game::Direction::Left);
 
-                if !state.game_state.update() {
-                    // TODO(smolck): Display a lose message
-                    state.game_state.reset();
+                    if !state.game_state.update() {
+                        // TODO(smolck): Display a lose message
+                        state.game_state.reset();
+                    }
+
+                    std::thread::sleep(std::time::Duration::from_millis(100));
+                    // state.game_state.update();
+                    // state.update();
+                    match state.render() {
+                        Ok(_) => {}
+                        Err(wgpu::SurfaceError::Lost) => state.resize(state.size),
+                        Err(wgpu::SurfaceError::OutOfMemory) => elwt.exit(),
+                        Err(e) => eprintln!("{:?}", e),
+                    }
+
+                    state.window.request_redraw();
                 }
+                // WindowEvent::KeyboardInput { device_id, input, is_synthetic } => {
+                // match input { }
+                // }
+                _ => {}
+            },
 
-                std::thread::sleep(std::time::Duration::from_millis(100));
-                // state.game_state.update();
-                // state.update();
-                match state.render() {
-                    Ok(_) => {}
-                    Err(wgpu::SurfaceError::Lost) => state.resize(state.size),
-                    Err(wgpu::SurfaceError::OutOfMemory) => elwt.exit(),
-                    Err(e) => eprintln!("{:?}", e),
-                }
-
+            /*Event::MainEventsCleared => {
                 state.window.request_redraw();
-            }
-            // WindowEvent::KeyboardInput { device_id, input, is_synthetic } => {
-            // match input { }
-            // }
+            }*/
             _ => {}
-        },
-
-        /*Event::MainEventsCleared => {
-            state.window.request_redraw();
-        }*/
-        _ => {}
-    }).expect("failure?");
+        })
+        .expect("failure?");
 }
 
 fn main() {
