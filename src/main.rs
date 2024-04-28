@@ -2,13 +2,6 @@ mod game;
 mod shader;
 
 // TODO(smolck): checkkered pattern background option
-
-/*use winit::{
-    event::*,
-    event_loop::{ControlFlow, EventLoop},
-    window::{Window, WindowBuilder},
-};*/
-
 use winit::{
     event::*,
     event_loop::{ControlFlow, EventLoop},
@@ -16,21 +9,108 @@ use winit::{
     window::Window,
 };
 
-// use wgpu::util::DeviceExt;
+use wgpu::util::DeviceExt;
 
-// struct Colors {
-// }
+struct Uniforms {
+    window_resolution: [f32; 2],
+    snake_color: [f32; 3],
+    bg_color: [f32; 3],
+    food_color: [f32; 3],
 
-// TODO(smolck): Moved these to constants in the shader cuz they weren't
-// getting displayed right, don't think they were in the buffer right, idk
-/*const COLORS: [[f32; 3]; 3] = [
-    // snake
-    [1., 1., 1.],
-    // bg
-    [0., 0., 0.],
-    // food
-    [1., 0., 0.],
-];*/
+    colors_buffer: wgpu::Buffer,
+    resolution_buffer: wgpu::Buffer,
+    bind_group_layout: wgpu::BindGroupLayout,
+    bind_group: wgpu::BindGroup,
+}
+
+impl Uniforms {
+    pub fn new(
+        device: &wgpu::Device,
+        win_width: f32,
+        win_height: f32,
+        snake_color: [f32; 3],
+        bg_color: [f32; 3],
+        food_color: [f32; 3],
+    ) -> Self {
+        let resolution_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("resolution uniforms buffer"),
+            contents: bytemuck::cast_slice(&[win_width, win_height]),
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+        });
+
+        let colors_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("uniforms buffer"),
+            contents: bytemuck::cast_slice(&[
+                snake_color[0],
+                snake_color[1],
+                snake_color[2],
+                0.,
+                bg_color[0],
+                bg_color[1],
+                bg_color[2],
+                0.,
+                food_color[0],
+                food_color[1],
+                food_color[2],
+                0.,
+            ]),
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+        });
+
+        let bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            label: Some("uniforms_bind_group_layout"),
+            entries: &[
+                wgpu::BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: wgpu::ShaderStages::VERTEX,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 1,
+                    visibility: wgpu::ShaderStages::VERTEX,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+            ],
+        });
+
+        let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("uniforms bind group"),
+            layout: &bind_group_layout,
+            entries: &[
+                wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: colors_buffer.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: resolution_buffer.as_entire_binding(),
+                },
+            ],
+        });
+
+        Self {
+            window_resolution: [win_width, win_height],
+            snake_color: [1., 1., 1.],
+            bg_color: [0., 0., 0.],
+            food_color: [1., 0., 0.],
+
+            resolution_buffer,
+            colors_buffer,
+            bind_group,
+            bind_group_layout,
+        }
+    }
+}
 
 struct State {
     game_state: game::Game,
@@ -50,7 +130,8 @@ struct State {
 
     vertex_buffer: wgpu::Buffer,
     num_vertices: u32,
-    // color_uniforms_bind_group: wgpu::BindGroup,
+
+    uniforms: Uniforms,
 }
 
 impl State {
@@ -97,6 +178,7 @@ impl State {
             .unwrap_or(&surface_caps.formats[0]);
 
         let win_size = window.inner_size();
+        println!("win size: {:?}", win_size);
         let config = wgpu::SurfaceConfiguration {
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
             format: *surface_format,
@@ -109,68 +191,31 @@ impl State {
 
         surface.configure(&device, &config);
 
-        /*let color_uniforms_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("color uniforms buffer"),
-            contents: bytemuck::cast_slice(&COLORS),
-            usage: wgpu::BufferUsages::UNIFORM,
-        });
-        let color_uniforms_bind_group_layout =
-            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-                entries: &[wgpu::BindGroupLayoutEntry {
-                    binding: 0,
-                    visibility: wgpu::ShaderStages::VERTEX,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Uniform,
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
-                    },
-                    count: None,
-                }],
-                label: Some("color_uniforms_bind_group_layout"),
-            });
-        let color_uniforms_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            layout: &color_uniforms_bind_group_layout,
-            entries: &[wgpu::BindGroupEntry {
-                binding: 0,
-                resource: color_uniforms_buffer.as_entire_binding(),
-            }],
-            label: Some("color_uniforms_bind_group"),
-        });*/
-
-        /*let vertex_positions = shader::square_for_pos(
+        let snake_color = [1., 1., 1.];
+        let bg_color = [0., 0., 0.];
+        let food_color = [1., 0., 0.];
+        let uniforms = Uniforms::new(
+            &device,
             win_size.width as f32,
             win_size.height as f32,
-            (win_size.width / 2) as f32,
-            (win_size.height / 2) as f32,
-            100.0,
+            snake_color,
+            bg_color,
+            food_color,
         );
 
-        let vertexes = vertex_positions
-            .chunks(2)
-            .map(|x| shader::Vertex {
-                position: [x[0], x[1]],
-                coloridx: 0,
-            })
-            .collect::<Vec<shader::Vertex>>();*/
         let vertex_buffer = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("vertex buffer"),
             mapped_at_creation: false,
             size: 100_000_000, // TODO(smolck): yeah probably no lol
             usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
         });
-        /*let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("vertex buffer"),
-            contents: bytemuck::cast_slice(&vertexes),
-            usage: wgpu::BufferUsages::VERTEX,
-        });*/
 
         let shader = device.create_shader_module(wgpu::include_wgsl!("shader.wgsl"));
 
         let render_pipeline_layout =
             device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: Some("Render Pipeline Layout"),
-                // bind_group_layouts: &[&color_uniforms_bind_group_layout],
-                bind_group_layouts: &[],
+                bind_group_layouts: &[&uniforms.bind_group_layout],
                 push_constant_ranges: &[],
             });
 
@@ -228,7 +273,8 @@ impl State {
             render_pipeline,
             vertex_buffer,
             num_vertices,
-            // color_uniforms_bind_group,
+
+            uniforms,
         }
     }
 
@@ -282,7 +328,7 @@ impl State {
 
             render_pass.set_pipeline(&self.render_pipeline);
             render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
-            // render_pass.set_bind_group(0, &self.color_uniforms_bind_group, &[]);
+            render_pass.set_bind_group(0, &self.uniforms.bind_group, &[]);
             render_pass.draw(0..self.num_vertices, 0..1);
         }
 

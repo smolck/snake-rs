@@ -31,22 +31,18 @@ impl Vertex {
     }
 }
 
-#[inline]
-fn normalize(win_width: f32, win_height: f32, n: f32, w: bool) -> f32 {
-    -1.0 + 2.0 * (if w { n / win_width } else { n / win_height })
-}
-
 pub fn square_for_pos(win_width: f32, win_height: f32, x: f32, y: f32, size: f32) -> [f32; 12] {
     let l = x - size; // (size / 2.);
     let r = x + size; // (size / 2.);
     let t = y + size;
     let b = y - size;
 
-    let mut verts = [l, b, r, b, l, t, r, b, r, t, l, t];
-
-    for i in 0..verts.len() {
-        verts[i] = normalize(win_width, win_height, verts[i], i % 2 == 0);
-    }
-
-    verts
+    [
+        l, b, // bottom left
+        r, b, // bottom right
+        l, t, // top left
+        r, b, // bottom right
+        r, t, // top right
+        l, t, // top left
+    ]
 }
