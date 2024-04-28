@@ -59,6 +59,7 @@ impl State {
             backends: wgpu::Backends::DX12
                 | wgpu::Backends::DX11
                 | wgpu::Backends::VULKAN
+                | wgpu::Backends::METAL
                 | wgpu::Backends::GL,
             ..Default::default()
         });
@@ -154,7 +155,7 @@ impl State {
         let vertex_buffer = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("vertex buffer"),
             mapped_at_creation: false,
-            size: 250_000,
+            size: 100_000_000, // TODO(smolck): yeah probably no lol
             usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
         });
         /*let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
