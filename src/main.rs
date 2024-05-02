@@ -358,9 +358,6 @@ async fn run() {
             } if window_id == state.window.id() => match event {
                 WindowEvent::CloseRequested => elwt.exit(),
                 WindowEvent::Resized(new_size) => state.resize(*new_size),
-                /*WindowEvent::ScaleFactorChanged { new_inner_size, .. } => {
-                    state.resize(**new_inner_size)
-                }*/
                 WindowEvent::KeyboardInput {
                     event: KeyEvent { physical_key, .. },
                     ..
@@ -375,6 +372,7 @@ async fn run() {
                             _ => state.game_state.current_direction(),
                         });
                     }
+                    state.window.request_redraw();
                 }
                 WindowEvent::RedrawRequested => {
                     // state.game_state.change_direction(game::Direction::Left);
@@ -385,8 +383,6 @@ async fn run() {
                     }
 
                     std::thread::sleep(std::time::Duration::from_millis(100));
-                    // state.game_state.update();
-                    // state.update();
                     match state.render() {
                         Ok(_) => {}
                         Err(wgpu::SurfaceError::Lost) => state.resize(state.size),
@@ -396,15 +392,8 @@ async fn run() {
 
                     state.window.request_redraw();
                 }
-                // WindowEvent::KeyboardInput { device_id, input, is_synthetic } => {
-                // match input { }
-                // }
                 _ => {}
             },
-
-            /*Event::MainEventsCleared => {
-                state.window.request_redraw();
-            }*/
             _ => {}
         })
         .expect("failure?");

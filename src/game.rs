@@ -138,6 +138,37 @@ impl Game {
     }
 
     pub fn change_direction(&mut self, new_direction: Direction) {
+        // If length is 1, we can move in any direction and also the next check
+        // is gonna have an out of bounds array access, so change direction and return
+        if self.snake.tiles.len() == 1 {
+            self.snake.direction = new_direction;
+            return;
+        }
+
+        // Can't move into itself
+        match new_direction {
+            Direction::Right => {
+                if self.snake.tiles[0].x + 1 == self.snake.tiles[1].x {
+                    return;
+                }
+            }
+            Direction::Left => {
+                if self.snake.tiles[0].x - 1 == self.snake.tiles[1].x {
+                    return;
+                }
+            }
+            Direction::Up => {
+                if self.snake.tiles[0].y + 1 == self.snake.tiles[1].y {
+                    return;
+                }
+            }
+            Direction::Down => {
+                if self.snake.tiles[0].y - 1 == self.snake.tiles[1].y {
+                    return;
+                }
+            }
+            Direction::Stationary => unreachable!(),
+        }
         self.snake.direction = new_direction;
     }
 
@@ -148,6 +179,43 @@ impl Game {
     /// Updates game. Must be called manually after every change
     /// if it returns false then game over
     pub fn update(&mut self) -> bool {
+        if matches!(self.snake.direction, Direction::Stationary) {
+            return true;
+        }
+
+        // Collision detection with wall
+        match self.snake.direction {
+            Direction::Right => {
+                if self.snake.tiles[0].x == self.cols - 1 {
+                    return false;
+                }
+            }
+            Direction::Left => {
+                if self.snake.tiles[0].x == 0 {
+                    return false;
+                }
+            }
+            Direction::Up => {
+                if self.snake.tiles[0].y == self.rows - 1 {
+                    return false;
+                }
+            }
+            Direction::Down => {
+                if self.snake.tiles[0].y == 0 {
+                    return false;
+                }
+            }
+            _ => {}
+        }
+
+        // Collision with self
+        let head_tile = self.snake.tiles[0];
+        for tile in self.snake.tiles[1..].iter() {
+            if head_tile.x == tile.x && head_tile.y == tile.y {
+                return false;
+            }
+        }
+
         // Move snake in direction
         if !matches!(self.snake.direction, Direction::Stationary) {
             if self.snake.tiles[0].x == 0 && matches!(self.snake.direction, Direction::Left) {
@@ -272,6 +340,65 @@ impl Game {
 
 #[cfg(test)]
 mod tests {
-    //#[test]
-    //fn board_initializes_properly() ->
+    use super::*;
+
+    #[allow(dead_code)]
+    fn util_debug_board(game: &Game) {
+        for i in 0..game.rows {
+            for j in 0..game.cols {
+                let text = match game.board[i * game.cols + j] {
+                    Tile::Empty => " ",
+                    Tile::Food => "F",
+                    Tile::SnakeBody => "b",
+                    Tile::SnakeHead => "S",
+                };
+                print!("[{text}]");
+            }
+            println!();
+        }
+        println!();
+    }
+
+    fn util_idx_for_pos(pos: Pos, cols: usize) -> usize {
+        pos.y * cols + pos.x
+    }
+
+    #[test]
+    fn board_initializes_properly() {
+        let game = super::Game::new(100., 100., 10.);
+
+        assert_eq!(game.board.len(), (100 / 10) * (100 / 10));
+        assert_eq!(game.snake.tiles.len(), 1);
+        assert_eq!(game.snake.tiles[0].x, 5);
+        assert_eq!(game.snake.tiles[0].y, 5);
+    }
+
+    #[test]
+    fn snake_eats_food_properly_when_small_len() {
+        let mut game = super::Game::new(100., 100., 10.);
+
+        // Setup snake about to eat food
+        let food_x = game.food_location % game.cols;
+        let food_y = game.food_location / game.cols;
+        game.snake.tiles[0] = Pos {
+            x: food_x - 1,
+            y: food_y,
+        };
+        game.change_direction(Direction::Right);
+
+        let food_location = game.food_location;
+        assert!(game.update());
+
+        // New food is moved to a new location
+        assert_ne!(food_location, game.food_location);
+        // Snake is increased by one
+        assert_eq!(game.snake.tiles.len(), 2);
+        // Snake head is where food is
+        assert_eq!(
+            util_idx_for_pos(game.snake.tiles[0], game.cols),
+            food_location
+        );
+        // New end of snake is behind snake head
+        assert_eq!(game.snake.tiles[1].x, food_location % game.cols + 1);
+    }
 }
